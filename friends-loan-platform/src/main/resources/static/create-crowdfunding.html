@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Crowdfunding - UIU Friends</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .create-card {
+            max-width: 720px;
+            margin: 40px auto;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+            overflow: hidden;
+        }
+        .card-header {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 30px 25px;
+            text-align: center;
+        }
+        .form-control, .form-select {
+            border-radius: 10px;
+            padding: 12px 16px;
+        }
+        .btn-submit {
+            padding: 14px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 12px;
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="dashboard.html">UIU Friends</a>
+        <div class="navbar-nav ms-auto">
+            <a class="nav-link" href="dashboard.html">Home</a>
+            <a class="nav-link active" href="create-crowdfunding.html">Create Campaign</a>
+            <a class="nav-link" href="crowdfunding.html">All Campaigns</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container mt-5">
+    <div class="create-card card">
+        <div class="card-header">
+            <h3><i class="fas fa-users"></i> Create a new Crowdfunding Campaign</h3>
+            <p class="mb-0">Share your needs, the community will stand by you</p>
+        </div>
+        <div class="card-body p-5">
+            <form id="createCrowdfundingForm">
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Campaign Title</label>
+                    <input type="text" id="title" class="form-control" placeholder="Ex: I want help for my mother's treatment" required>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Detailed description</label>
+                    <textarea id="description" class="form-control" rows="6" placeholder="Your story, why money is needed..." required></textarea>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <label class="form-label fw-bold">Amount of money required (৳)</label>
+                        <input type="number" id="amountNeeded" class="form-control" placeholder="50000" required>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <label class="form-label fw-bold">Want to finish in how many days?</label>
+                        <input type="number" id="deadlineDays" class="form-control" value="30" required>
+                    </div>
+                </div>
+
+                <div class="mb-4 form-check">
+                    <input type="checkbox" id="isUrgent" class="form-check-input">
+                    <label class="form-check-label fw-bold text-danger" for="isUrgent">
+                        <i class="fas fa-fire"></i>It is important (URGENT)
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-success btn-submit w-100">
+                    <i class="fas fa-paper-plane"></i> Submit for Admin Approval
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/app.js"></script>
+<script>
+    document.getElementById("createCrowdfundingForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const request = {
+            title: document.getElementById("title").value,
+            description: document.getElementById("description").value,
+            amountNeeded: parseFloat(document.getElementById("amountNeeded").value),
+            deadlineDays: parseInt(document.getElementById("deadlineDays").value),
+            isUrgent: document.getElementById("isUrgent").checked
+        };
+
+        try {
+            await apiRequest("/crowdfunding", "POST", request);
+            alert("🎉 Crowdfunding campaign created!\nAdmin If approved, it will be published.");
+            window.location.href = "crowdfunding.html";
+        } catch (error) {
+            alert("Error: " + error.message);
+        }
+    });
+</script>
+</body>
+</html>

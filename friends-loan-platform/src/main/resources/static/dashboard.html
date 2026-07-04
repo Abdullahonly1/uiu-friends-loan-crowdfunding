@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UIU Friends - Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .navbar { background: white; box-shadow: 0 2px 15px rgba(0,0,0,0.1); }
+        .post-card { transition: all 0.3s; border: none; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        .post-card:hover { transform: translateY(-8px); }
+        .user-avatar { width: 48px; height: 48px; border-radius: 50%; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+        .tab { padding: 12px 28px; border-radius: 50px; font-weight: 600; }
+        .tab.active { background: #3b82f6; color: white; }
+    </style>
+</head>
+<body class="bg-light">
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+    <div class="container">
+        <a class="navbar-brand fw-bold fs-3 text-primary" href="dashboard.html">UIU Friends</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav mx-auto align-items-center">
+                <li class="nav-item">
+                    <a class="nav-link px-3" onclick="loadPosts('all')">
+                        <i class="fas fa-home me-1"></i> Home
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link px-3" href="messages.html">
+                        <i class="fas fa-comment-dots me-1"></i> Messages
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link px-3" href="profile.html">
+                        <i class="fas fa-user me-1"></i> Profile
+                    </a>
+                </li>
+
+                <!-- ==================== NOTIFICATION BELL ==================== -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link position-relative px-3" href="#" id="notificationDropdown" role="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-bell fa-lg"></i>
+                        <span id="unreadCount" class="badge bg-danger position-absolute top-0 start-100 translate-middle rounded-pill"
+                              style="font-size: 0.75rem; padding: 2px 6px; display: none;">0</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end" style="width: 320px; max-height: 420px; overflow-y: auto;" id="notificationList">
+                        <li><a class="dropdown-item text-center text-muted py-3">Loading notifications...</a></li>
+                    </ul>
+                </li>
+            </ul>
+
+            <div class="d-flex align-items-center gap-2">
+                <a href="create-loan.html" class="btn btn-primary px-4">
+                    <i class="fas fa-plus"></i> Request Loan
+                </a>
+                <a href="create-crowdfunding.html" class="btn btn-success px-4">
+                    <i class="fas fa-plus"></i> Start Campaign
+                </a>
+            </div>
+
+            <a href="#" onclick="logout()" class="nav-link text-danger fw-bold ms-4">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+        </div>
+    </div>
+</nav>
+
+<!-- Hero -->
+<header class="hero text-center py-5 bg-primary text-white">
+    <div class="container">
+        <h1 class="display-4 fw-bold">Welcome back, <span id="userName">User</span>! 👋</h1>
+        <p class="lead mb-0">
+            Trust Score: <strong id="dashboardTrustScore">0.0</strong>/100
+        </p>
+    </div>
+</header>
+
+<div class="container mt-5">
+    <!-- Tabs -->
+    <div class="d-flex justify-content-between mb-4">
+        <div>
+            <button class="tab active" data-tab="all" onclick="switchTab(this)">All Posts</button>
+            <button class="tab" data-tab="loans" onclick="switchTab(this)">Loans</button>
+            <button class="tab" data-tab="crowdfunding" onclick="switchTab(this)">Campaigns</button>
+        </div>
+    </div>
+
+    <!-- Posts Container -->
+    <div id="postsContainer" class="row g-4"></div>
+</div>
+
+<!-- Chat Modal -->
+<div class="modal fade" id="chatModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="chatWithName">Chat</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="chatBody" style="height: 450px; overflow-y: auto; background:#f8f9fa; padding:15px;">
+            </div>
+            <div class="modal-footer">
+                <input type="text" id="chatInput" class="form-control" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendChatMessage()">
+                <button onclick="sendChatMessage()" class="btn btn-primary">Send</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/app.js"></script>
+
+<!-- Real-time Chat Library -->
+<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/dist/stomp.min.js"></script>
+
+<script>
+    let currentUser = {};
+    let currentChatReceiver = null;
+    let stompClient = null;
+
+    // ================== Load User ==================
+    async function loadUserInfo() {
+    const token = localStorage.getItem('token');
+    if (!token) return window.location.href = 'login.html';
+
+    try {
+        const res = await fetch('/api/auth/me', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (res.ok) {
+            currentUser = await res.json();
+
+
+            document.getElementById('userName').textContent = currentUser.name || 'User';
+
+            // Trust Score
+            let trustScore = 0.0;
+
+            if (currentUser.trustScore !== null && currentUser.trustScore !== undefined) {
+                trustScore = parseFloat(currentUser.trustScore);
+            }
+
+            const trustElement = document.getElementById('dashboardTrustScore');
+            if (trustElement) {
+                trustElement.textContent = trustScore.toFixed(1);
+            }
+
+            console.log("✅ Loaded User Trust Score:", trustScore, "| Full User Object:", currentUser);
+        }
+    } catch (e) {
+        console.error("Failed to load user info", e);
+    }
+}
+
+    // ================== Posts ==================
+    function switchTab(btn) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+        loadPosts(btn.dataset.tab);
+    }
+
+    async function loadPosts(tab) {
+        const container = document.getElementById("postsContainer");
+        container.innerHTML = `<div class="col-12 text-center py-5"><p class="text-muted">Loading posts...</p></div>`;
+
+        try {
+            let posts = [];
+            if (tab === 'loans') posts = await apiRequest("/loans", "GET") || [];
+            else if (tab === 'crowdfunding') posts = await apiRequest("/crowdfunding", "GET") || [];
+            else {
+                const loans = await apiRequest("/loans", "GET").catch(() => []);
+                const cf = await apiRequest("/crowdfunding", "GET").catch(() => []);
+                posts = [...loans, ...cf];
+            }
+            renderPosts(posts, tab);
+        } catch (e) { console.error(e); }
+    }
+
+  function renderPosts(posts, tab) {
+    const container = document.getElementById("postsContainer");
+    container.innerHTML = "";
+
+    if (posts.length === 0) {
+        container.innerHTML = `<div class="col-12 text-center py-5"><p class="text-muted">No posts found.</p></div>`;
+        return;
+    }
+
+    posts.forEach(post => {
+        const isLoan = !!post.purpose;
+        const user = isLoan ? post.borrower : post.user;
+        const userName = user && user.name ? user.name : 'Anonymous';
+        const userId = user ? user.id : null;
+
+        const cardHTML = `
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="post-card card h-100 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="d-flex align-items-center">
+                                <div class="user-avatar bg-primary text-white d-flex align-items-center justify-content-center me-3 fw-bold fs-5"
+                                     style="width:48px;height:48px;border-radius:50%;">
+                                    ${userName[0] || 'U'}
+                                </div>
+                                <div>
+                                    <!-- ✅ Borrower/User এর নামে ক্লিক করলে তার Profile খুলবে -->
+                                    <h6 class="mb-0">
+                                        <a href="profile.html?id=${userId}"
+                                           class="text-decoration-none text-primary">
+                                            ${userName}
+                                        </a>
+                                    </h6>
+                                </div>
+                            </div>
+                            <button onclick="openChatWithUser(${post.id}, '${isLoan ? 'loan' : 'crowdfunding'}', '${userName}', ${userId})"
+                                    class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-comment-dots"></i> Chat
+                            </button>
+                        </div>
+
+                        <h5>${isLoan ? post.purpose : post.title}</h5>
+                        <p class="text-muted small">${isLoan ? (post.reason || post.purpose) : post.description}</p>
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <strong>৳${isLoan ? post.amount : (post.amountNeeded || post.current_amount)}</strong>
+                            <span>${isLoan ? post.repaymentMonths + ' months' : 'Ongoing'}</span>
+                        </div>
+
+                        <button class="btn ${isLoan ? 'btn-primary' : 'btn-success'} btn-sm w-100 mt-3"
+                                onclick="${isLoan ? `viewLoanDetails(${post.id})` : `goToDonatePage(${post.id})`}">
+                            ${isLoan ? 'View Details' : 'Donate Now'}
+                        </button>
+                    </div>
+                </div>
+            </div>`;
+        container.innerHTML += cardHTML;
+    });
+}
+
+    // ================== Navigation to Details & Donate Page ==================
+    function viewLoanDetails(postId) {
+        window.location.href = `loan-details.html?id=${postId}`;
+    }
+
+    function goToDonatePage(postId) {
+        window.location.href = `donate.html?id=${postId}`;
+    }
+
+    // ================== Real-time Chat ==================
+    function connectWebSocket() {
+        if (stompClient && stompClient.connected) return;
+        const socket = new SockJS('/ws-chat');
+        stompClient = Stomp.over(socket);
+        stompClient.connect({}, function() {
+            console.log("✅ WebSocket Connected");
+        }, function(error) {
+            console.error("WebSocket Error", error);
+        });
+    }
+
+    function openChatWithUser(postId, type, userName, receiverId) {
+        if (!receiverId) return alert("Cannot start chat");
+        currentChatReceiver = receiverId;
+        document.getElementById("chatWithName").textContent = "Chat with " + userName;
+        const modal = new bootstrap.Modal(document.getElementById('chatModal'));
+        modal.show();
+        loadChatHistory();
+    }
+
+    async function loadChatHistory() {
+        if (!currentChatReceiver) return;
+        const chatBody = document.getElementById("chatBody");
+        chatBody.innerHTML = "<p class='text-center text-muted py-5'>Loading messages...</p>";
+
+        try {
+            const res = await apiRequest(`/messages/history/${currentChatReceiver}`, "GET");
+            chatBody.innerHTML = "";
+
+            if (!res || res.length === 0) {
+                chatBody.innerHTML = `<p class='text-center text-muted py-5'>No messages yet.<br>Send the first message!</p>`;
+                return;
+            }
+
+            res.forEach(msg => {
+                const isMine = msg.sender.id === currentUser.id;
+                chatBody.innerHTML += `
+                    <div class="mb-3 ${isMine ? 'text-end' : 'text-start'}">
+                        <small class="text-muted">${isMine ? 'You' : (msg.sender.name || '')}</small><br>
+                        <span class="d-inline-block px-3 py-2 rounded-3 ${isMine ? 'bg-primary text-white' : 'bg-light'}">
+                            ${msg.content}
+                        </span>
+                    </div>`;
+            });
+            chatBody.scrollTop = chatBody.scrollHeight;
+        } catch (e) {
+            console.error(e);
+            chatBody.innerHTML = `<p class='text-center text-danger py-5'>Failed to load messages.</p>`;
+        }
+    }
+
+    function sendChatMessage() {
+        const input = document.getElementById("chatInput");
+        const text = input.value.trim();
+        if (!text || !currentChatReceiver) return;
+
+        fetch('/api/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+                receiverId: currentChatReceiver,
+                content: text
+            })
+        })
+        .then(() => {
+            input.value = "";
+            loadChatHistory();
+        })
+        .catch(() => alert("Failed to send message"));
+    }
+
+
+// ==================== NOTIFICATION SYSTEM ====================
+
+async function loadNotifications() {
+    try {
+        const notifications = await apiRequest('/notifications', "GET");
+        const container = document.getElementById("notificationList");
+        container.innerHTML = "";
+
+        if (notifications.length === 0) {
+            container.innerHTML = `<li><a class="dropdown-item text-muted">No notifications</a></li>`;
+            return;
+        }
+
+        notifications.forEach(notif => {
+            const item = document.createElement("li");
+            item.className = `dropdown-item ${notif.isRead ? 'text-muted' : 'fw-bold'}`;
+
+            let link = '#';
+            if (notif.relatedType === 'LOAN') {
+                link = `loan-details.html?id=${notif.relatedId}`;
+            } else if (notif.relatedType === 'CROWDFUNDING') {
+                link = `donate.html?id=${notif.relatedId}`;
+            }
+
+            item.innerHTML = `
+                <div onclick="handleNotificationClick(${notif.id}, '${link}')" style="cursor:pointer;">
+                    <strong>${notif.title}</strong><br>
+                    <small>${notif.message}</small><br>
+                    <small class="text-primary">${new Date(notif.createdAt).toLocaleString('en-US')}</small>
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    } catch (e) {
+        console.error(e);
+        document.getElementById("notificationList").innerHTML = `<li><a class="dropdown-item text-danger">Failed to load</a></li>`;
+    }
+}
+
+async function handleNotificationClick(notificationId, link) {
+    // Mark as read
+    try {
+        await fetch(`/api/notifications/${notificationId}/read`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+    } catch (e) {}
+
+    if (link && link !== '#') {
+        window.location.href = link;
+    }
+}
+
+// Unread Count
+async function loadUnreadCount() {
+    try {
+        const count = await apiRequest('/notifications/unread-count', "GET");
+        const badge = document.getElementById("unreadCount");
+        if (count > 0) {
+            badge.textContent = count > 99 ? '99+' : count;
+            badge.style.display = 'block';
+        } else {
+            badge.style.display = 'none';
+        }
+    } catch (e) {}
+}
+
+// Dropdown খোলার সময় লোড
+document.getElementById("notificationDropdown").addEventListener('shown.bs.dropdown', () => {
+    loadNotifications();
+});
+
+// প্রতি 8 সেকেন্ডে Unread Count আপডেট
+setInterval(loadUnreadCount, 8000);
+
+
+
+    window.onload = () => {
+        loadUserInfo();
+        loadPosts('all');
+        setTimeout(connectWebSocket, 1000);
+        // Notification
+        loadUnreadCount();
+    };
+</script>
+</body>
+</html>

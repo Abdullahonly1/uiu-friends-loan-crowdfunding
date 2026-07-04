@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loan Details - UIU Friends</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .hero { background: linear-gradient(135deg, #3b82f6, #1e40af); color: white; padding: 40px 0; }
+        .user-avatar { width: 70px; height: 70px; border-radius: 50%; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+        .offer-card { border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="dashboard.html">UIU Friends</a>
+        <a href="dashboard.html" class="btn btn-outline-primary"><i class="fas fa-arrow-left"></i> Back to Home</a>
+    </div>
+</nav>
+
+<div class="hero text-center">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+                <div class="user-avatar bg-primary text-white fw-bold fs-3 me-3" id="avatar"></div>
+                <div class="text-start">
+                    <h3 id="borrowerName" class="mb-0"></h3>
+                    <p id="trustInfo" class="mb-0"></p>
+                </div>
+            </div>
+            <button class="btn btn-light fw-bold" onclick="chatWithBorrower()">
+                <i class="fas fa-comment"></i> Chat with Borrower
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body">
+                    <div class="d-flex gap-2 mb-3" id="badges"></div>
+                    <h4 id="purpose" class="mb-3"></h4>
+                    <p id="reason" class="text-muted"></p>
+
+                    <div class="row text-center mt-4">
+                        <div class="col-4">
+                            <h6 class="text-muted">Loan Amount</h6>
+                            <h3 class="text-primary fw-bold" id="amount"></h3>
+                        </div>
+                        <div class="col-4">
+                            <h6 class="text-muted">Repayment Duration</h6>
+                            <h3 class="fw-bold" id="duration"></h3>
+                        </div>
+                        <div class="col-4">
+                            <h6 class="text-muted">Posted On</h6>
+                            <h3 class="fw-bold" id="postedDate"></h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Offers Section -->
+            <h5 class="mb-3">Loan Offers (<span id="offerCount">0</span>)</h5>
+            <div id="offersContainer"></div>
+        </div>
+
+        <div class="col-lg-4">
+            <button class="btn btn-primary w-100 py-3 mb-3 fs-5" onclick="showOfferModal()">
+                <i class="fas fa-hand-holding-dollar"></i> Make an Offer
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Submit Offer Modal -->
+<div class="modal fade" id="offerModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Submit Loan Offer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Interest Rate (%)</label>
+                    <input type="number" id="interestRate" class="form-control" step="0.1" placeholder="e.g. 5.5">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Repayment Period (Month)</label>
+                    <input type="number" id="repaymentMonths" class="form-control" min="1" placeholder="e.g. 6">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Message (Optional)</label>
+                    <textarea id="offerMessage" class="form-control" rows="3" placeholder="Add any additional terms or messages..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitOffer()">Submit Offer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/app.js"></script>
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const postId = urlParams.get('id');
+
+    let currentPost = null;
+    let currentUser = null;
+
+    async function loadCurrentUser() {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        try {
+            const res = await fetch('/api/auth/me', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) currentUser = await res.json();
+        } catch (e) {}
+    }
+
+    async function loadLoanDetails() {
+        console.log("🔍 Loading loan details for ID:", postId);
+
+        if (!postId) {
+            alert("No loan ID found!");
+            window.location.href = "dashboard.html";
+            return;
+        }
+
+        try {
+            currentPost = await apiRequest(`/loans/${postId}`, "GET");
+
+            document.getElementById('avatar').textContent = currentPost.borrower ? currentPost.borrower.name[0].toUpperCase() : 'U';
+            document.getElementById('borrowerName').textContent = currentPost.borrower ? currentPost.borrower.name : 'Anonymous';
+
+            // Trust Score দেখানো (এখানে আপডেট করা হয়েছে)
+            const trustScore = currentPost.borrower && currentPost.borrower.trustScore !== undefined
+                             ? currentPost.borrower.trustScore.toFixed(1)
+                             : '0.0';
+            document.getElementById('trustInfo').innerHTML = `Trust Score: <strong>${trustScore}</strong>/100`;
+
+            document.getElementById('purpose').textContent = currentPost.purpose || "N/A";
+            document.getElementById('reason').textContent = currentPost.reason || "No description provided.";
+
+            document.getElementById('amount').textContent = `৳${currentPost.amount}`;
+            document.getElementById('duration').textContent = `${currentPost.repaymentMonths} months`;
+            document.getElementById('postedDate').textContent = new Date(currentPost.createdAt).toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'});
+
+            loadOffers();
+        } catch (e) {
+            console.error(e);
+            document.getElementById('loanDetails').innerHTML = `
+                <div class="alert alert-warning text-center py-5">
+                    <h4 class="mb-3">This loan post could not be loaded</h4>
+                    <p class="mb-4">It may have been completed or removed.</p>
+                    <a href="dashboard.html" class="btn btn-primary">Back to Dashboard</a>
+                </div>`;
+        }
+    }
+
+    async function loadOffers() {
+        try {
+            const offers = await apiRequest(`/loans/${postId}/offers`, "GET");
+            const container = document.getElementById("offersContainer");
+            container.innerHTML = "";
+
+            document.getElementById("offerCount").textContent = offers.length;
+
+            if (offers.length === 0) {
+                container.innerHTML = `<p class="text-muted">No offers yet. Be the first to offer!</p>`;
+                return;
+            }
+
+            offers.forEach(offer => {
+                const months = offer.repaymentMonths || 'N/A';
+
+                const card = document.createElement('div');
+                card.className = 'offer-card card mb-3 p-3';
+                card.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <strong>${offer.lender.name}</strong> offered <strong>${offer.interestRate}%</strong> interest
+                            <p class="text-muted small mb-0">${offer.message || ''}</p>
+                            <p class="text-muted small mb-0">
+                                Repayment in <strong>${months}</strong> months
+                            </p>
+                        </div>
+                        <div class="text-end">
+                            <small class="text-muted">${new Date(offer.offeredAt).toLocaleDateString()}</small>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        } catch (e) {
+            console.error("Failed to load offers", e);
+            document.getElementById("offersContainer").innerHTML = `<p class="text-muted">No offers yet.</p>`;
+        }
+    }
+
+    function showOfferModal() {
+        new bootstrap.Modal(document.getElementById('offerModal')).show();
+    }
+
+    async function submitOffer() {
+        const rate = document.getElementById('interestRate').value.trim();
+        const months = document.getElementById('repaymentMonths').value.trim();
+        const message = document.getElementById('offerMessage').value.trim() || "";
+
+        if (!rate) {
+            alert("Please enter interest rate");
+            return;
+        }
+        if (!months) {
+            alert("Please enter repayment period (months)");
+            return;
+        }
+
+        try {
+            await apiRequest(`/loans/${postId}/offer?interestRate=${rate}&repaymentMonths=${months}&message=${encodeURIComponent(message)}`, "POST");
+
+            alert(`✅ Offer submitted successfully!\nInterest Rate: ${rate}%\nRepayment: ${months} months`);
+
+            bootstrap.Modal.getInstance(document.getElementById('offerModal')).hide();
+            loadOffers();
+        } catch (e) {
+            alert("Failed to submit offer");
+        }
+    }
+
+    function chatWithBorrower() {
+        alert("Chat feature coming soon!");
+    }
+
+    window.onload = async () => {
+        await loadCurrentUser();
+        await loadLoanDetails();
+    };
+</script>
+</body>
+</html>

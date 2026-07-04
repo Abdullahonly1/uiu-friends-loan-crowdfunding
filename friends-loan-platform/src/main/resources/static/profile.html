@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - UIU Friends</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .post-card { transition: all 0.3s; }
+        .post-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.15); }
+        .star { cursor: pointer; color: #ddd; font-size: 1.8rem; }
+        .star:hover, .star.active { color: #ffc107; }
+    </style>
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="dashboard.html">UIU Friends</a>
+        <a href="dashboard.html" class="btn btn-outline-primary"><i class="fas fa-arrow-left"></i> Back to Home</a>
+    </div>
+</nav>
+
+<div class="container mt-5">
+    <h2 class="mb-4">My Loan Posts</h2>
+    <div id="myPostsContainer" class="row g-4"></div>
+</div>
+
+<!-- ==================== RATING SECTION ==================== -->
+<div class="container mt-5">
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">User Rating</h5>
+
+            <!-- Trust Score  -->
+            <div class="mb-3">
+                <h6>Trust Score: <span id="profileTrustScore" class="text-primary fw-bold">0.0</span>/100</h6>
+            </div>
+
+            <div class="d-flex align-items-center mb-3">
+                <div id="averageStars" class="text-warning fs-3"></div>
+                <h4 id="averageRating" class="ms-3 mb-0">0.0</h4>
+                <small id="totalRatings" class="text-muted ms-2">(0 ratings)</small>
+            </div>
+
+            <!-- Rating Form -->
+            <div id="ratingFormContainer" class="mt-4" style="display: none;">
+                <h6>Give Rating to this user</h6>
+                <div class="star-rating mb-3">
+                    <span onclick="setRating(1)" class="star">★</span>
+                    <span onclick="setRating(2)" class="star">★</span>
+                    <span onclick="setRating(3)" class="star">★</span>
+                    <span onclick="setRating(4)" class="star">★</span>
+                    <span onclick="setRating(5)" class="star">★</span>
+                </div>
+
+                <textarea id="ratingComment" class="form-control mb-3" rows="2" placeholder="Write your comment (optional)"></textarea>
+
+                <button onclick="submitRating()" class="btn btn-primary">Submit Rating</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/app.js"></script>
+<script>
+    let currentUserId = null;
+    let viewedUserId = null;
+    let selectedRating = 0;
+
+    async function loadPosts() {
+        const container = document.getElementById("myPostsContainer");
+        container.innerHTML = "<p class='text-center text-muted'>Loading posts...</p>";
+
+        try {
+            let posts = [];
+
+            if (String(viewedUserId) === String(currentUserId)) {
+                posts = await apiRequest("/loans/my", "GET");
+            } else {
+                posts = await apiRequest(`/loans/user/${viewedUserId}`, "GET");
+            }
+
+            if (posts.length === 0) {
+                container.innerHTML = `<p class="text-center text-muted">No loan posts yet.</p>`;
+                return;
+            }
+
+            container.innerHTML = "";
+
+            posts.forEach(post => {
+                const card = document.createElement('div');
+                card.className = 'col-12 col-lg-6';
+                card.innerHTML = `
+                    <div class="post-card card h-100 shadow-sm">
+                        <div class="card-body">
+                            <h5>${post.purpose}</h5>
+                            <p class="text-muted small">${post.reason || ''}</p>
+                            <div class="d-flex justify-content-between mt-3">
+                                <div>
+                                    <strong>৳${post.amount}</strong><br>
+                                    <small>${post.repaymentMonths} months</small>
+                                </div>
+                                <button class="btn btn-primary btn-sm" onclick="viewPostOffers(${post.id})">
+                                    View Offers
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        } catch (e) {
+            console.error(e);
+            container.innerHTML = `<p class="text-danger">Failed to load posts</p>`;
+        }
+    }
+
+    function viewPostOffers(loanId) {
+        window.location.href = `loan-offers.html?id=${loanId}`;
+    }
+
+    function setRating(rating) {
+        selectedRating = rating;
+        document.querySelectorAll('.star').forEach((star, index) => {
+            star.style.color = (index + 1) <= rating ? '#ffc107' : '#ddd';
+        });
+    }
+
+    async function submitRating() {
+        if (selectedRating === 0) {
+            alert("Please select a rating!");
+            return;
+        }
+
+        const comment = document.getElementById("ratingComment").value || "";
+
+        try {
+            await apiRequest('/ratings', 'POST', {
+                ratedUserId: viewedUserId,
+                rating: selectedRating,
+                comment: comment
+            });
+
+            alert("Rating submitted successfully!");
+            selectedRating = 0;
+            document.querySelectorAll('.star').forEach(star => star.style.color = '#ddd');
+            document.getElementById("ratingComment").value = "";
+            loadUserProfile();
+        } catch (e) {
+            alert("Failed to submit rating");
+        }
+    }
+
+    async function loadUserProfile() {
+        const urlParams = new URLSearchParams(window.location.search);
+        viewedUserId = urlParams.get('id');
+
+        try {
+            const me = await apiRequest("/auth/me", "GET");
+            currentUserId = me.id;
+
+            if (!viewedUserId) viewedUserId = currentUserId;
+
+            console.log(`🔍 Viewing Profile ID: ${viewedUserId} | My ID: ${currentUserId}`);
+
+            await loadPosts();
+
+            const avg = await apiRequest(`/ratings/user/${viewedUserId}/average`, "GET");
+            const ratingsList = await apiRequest(`/ratings/user/${viewedUserId}`, "GET");
+
+            document.getElementById("averageRating").textContent = avg.toFixed(1);
+            document.getElementById("totalRatings").textContent = `(${ratingsList.length} ratings)`;
+
+            const starsHTML = Array(5).fill('★').map((star, i) =>
+                `<span style="color: ${i < Math.round(avg) ? '#ffc107' : '#ddd'}">${star}</span>`
+            ).join('');
+            document.getElementById("averageStars").innerHTML = starsHTML;
+
+            // Trust Score দেখানো (এখানে আপডেট করা হয়েছে)
+            const trustScore = (avg * 20).toFixed(1);
+            document.getElementById("profileTrustScore").textContent = trustScore;
+
+            if (String(viewedUserId) !== String(currentUserId)) {
+                document.getElementById("ratingFormContainer").style.display = "block";
+            } else {
+                document.getElementById("ratingFormContainer").style.display = "none";
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    window.onload = () => {
+        loadUserProfile();
+    };
+</script>
+</body>
+</html>

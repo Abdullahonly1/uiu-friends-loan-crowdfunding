@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offers - UIU Friends</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="dashboard.html">UIU Friends</a>
+        <a href="profile.html" class="btn btn-outline-primary"><i class="fas fa-arrow-left"></i> Back to Profile</a>
+    </div>
+</nav>
+
+<div class="container mt-4">
+    <h3 id="loanTitle"></h3>
+    <div id="offersContainer" class="mt-4"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/app.js"></script>
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const loanId = urlParams.get('id');
+
+    async function loadOffers() {
+        if (!loanId) {
+            document.getElementById("offersContainer").innerHTML = `<p class="text-danger">Post ID not found.</p>`;
+            return;
+        }
+
+        const container = document.getElementById("offersContainer");
+        container.innerHTML = "<p class='text-center text-muted'>Loading offers...</p>";
+
+        try {
+            const offers = await apiRequest(`/loans/${loanId}/offers`, "GET");
+
+            container.innerHTML = "";
+
+            if (offers.length === 0) {
+                container.innerHTML = `<p class="text-center text-muted py-5">No offers yet.</p>`;
+                return;
+            }
+
+            offers.forEach(offer => {
+                let statusHTML = '';
+
+                if (offer.status === 'ACCEPTED') {
+                    statusHTML = `<span class="badge bg-success fs-6">ACCEPTED</span>`;
+                } else if (offer.status === 'REJECTED') {
+                    statusHTML = `<span class="badge bg-danger fs-6">REJECTED</span>`;
+                } else {
+                    statusHTML = `<button onclick="acceptThisOffer(${offer.id})" class="btn btn-success btn-sm">Accept Offer</button>`;
+                }
+
+                const cardHTML = `
+                    <div class="col-12 mb-3">
+                        <div class="card ${offer.status === 'ACCEPTED' ? 'border-success' : offer.status === 'REJECTED' ? 'border-danger opacity-75' : ''}">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">${offer.lender.name}</h6>
+                                        <p class="mb-1">Interest Rate: <strong>${offer.interestRate}%</strong></p>
+                                        ${offer.message ? `<p class="text-muted small">${offer.message}</p>` : ''}
+                                    </div>
+                                    <div class="text-end">
+                                        ${statusHTML}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                container.innerHTML += cardHTML;
+            });
+        } catch (e) {
+            console.error(e);
+            container.innerHTML = `<p class="text-danger text-center py-5">Failed to load offers.</p>`;
+        }
+    }
+
+    function acceptThisOffer(offerId) {
+        if (!confirm("Accept this offer? All other pending offers will be rejected.")) return;
+
+        fetch(`/api/loans/offers/${offerId}/accept`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                alert("Offer Accepted Successfully!");
+                loadOffers();   // Refresh list
+            } else {
+                alert("Failed to accept offer");
+            }
+        })
+        .catch(() => alert("Error occurred while accepting offer"));
+    }
+
+    // Page Load
+    window.onload = () => {
+        loadOffers();
+    };
+</script>
+</body>
+</html>
