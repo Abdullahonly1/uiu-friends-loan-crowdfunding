@@ -1,0 +1,146 @@
+-- =============================================
+-- UIU Friends Loan & Crowdfunding Platform
+-- Database: uiu_friends_db
+-- =============================================
+DROP database uiu_friends_db;
+CREATE DATABASE IF NOT EXISTS uiu_friends_db ;
+
+USE uiu_friends_db;
+
+-- 1. Users Table
+CREATE TABLE IF NOT EXISTS users (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    phone VARCHAR(15),
+    role ENUM('USER', 'ADMIN') DEFAULT 'USER',
+    trust_score DOUBLE DEFAULT 0.0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- 2. Loan Posts Table
+CREATE TABLE IF NOT EXISTS loan_posts (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    borrower_id BIGINT NOT NULL,
+    amount DOUBLE NOT NULL,
+    purpose TEXT NOT NULL,
+    repayment_months INT NOT NULL,
+    status ENUM('PENDING', 'APPROVED', 'REJECTED', 'ACTIVE', 'COMPLETED') DEFAULT 'PENDING',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    approved_at TIMESTAMP NULL,
+    FOREIGN KEY (borrower_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 3. Crowdfunding Posts Table
+CREATE TABLE IF NOT EXISTS crowdfunding_posts (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    description TEXT NOT NULL,
+    amount_needed DOUBLE NOT NULL,
+    current_amount DOUBLE DEFAULT 0.0,
+    is_urgent BOOLEAN DEFAULT FALSE,
+    status ENUM('PENDING', 'APPROVED', 'REJECTED', 'ACTIVE', 'COMPLETED') DEFAULT 'PENDING',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    approved_at TIMESTAMP NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- =============================================
+-- পরবর্তীতে যোগ করা টেবিলসমূহ (যেগুলো এখনো তৈরি করিনি)
+-- =============================================
+
+-- 4. Offers Table (Loan Offer)
+CREATE TABLE IF NOT EXISTS offers (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    loan_post_id BIGINT NOT NULL,
+    lender_id BIGINT NOT NULL,
+    interest_rate DOUBLE NOT NULL,
+    repayment_months INT NOT NULL,
+    message TEXT,
+    status ENUM('PENDING', 'ACCEPTED', 'REJECTED', 'CANCELLED') DEFAULT 'PENDING',
+    offered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (loan_post_id) REFERENCES loan_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (lender_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 5. Donations Table
+CREATE TABLE IF NOT EXISTS donations (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    crowdfunding_post_id BIGINT NOT NULL,
+    donor_id BIGINT NOT NULL,
+    amount DOUBLE NOT NULL,
+    message TEXT,
+    donated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (crowdfunding_post_id) REFERENCES crowdfunding_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (donor_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 6. Ratings Table
+CREATE TABLE IF NOT EXISTS ratings (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    rater_id BIGINT NOT NULL,
+    target_user_id BIGINT NOT NULL,
+    rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    review TEXT,
+    transaction_type ENUM('LOAN', 'DONATION'),
+    transaction_id BIGINT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (rater_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 7. Digital Agreements Table (Optional - Future)
+CREATE TABLE IF NOT EXISTS loan_agreements (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    loan_post_id BIGINT NOT NULL,
+    borrower_id BIGINT NOT NULL,
+    lender_id BIGINT NOT NULL,
+    agreed_amount DOUBLE NOT NULL,
+    interest_rate DOUBLE NOT NULL,
+    repayment_months INT NOT NULL,
+    agreement_status ENUM('PENDING', 'SIGNED', 'COMPLETED') DEFAULT 'PENDING',
+    signed_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (loan_post_id) REFERENCES loan_posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (borrower_id) REFERENCES users(id),
+    FOREIGN KEY (lender_id) REFERENCES users(id)
+);
+
+
+
+CREATE TABLE IF NOT EXISTS messages (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    sender_id BIGINT NOT NULL,
+    receiver_id BIGINT NOT NULL,
+    content TEXT NOT NULL,
+    sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    loan_post_id BIGINT NULL,
+    crowdfunding_post_id BIGINT NULL,
+    
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (loan_post_id) REFERENCES loan_posts(id) ON DELETE SET NULL,
+    FOREIGN KEY (crowdfunding_post_id) REFERENCES crowdfunding_posts(id) ON DELETE SET NULL
+);
+
+-- Index for faster chat history loading
+CREATE INDEX idx_messages_sender_receiver ON messages(sender_id, receiver_id);
+CREATE INDEX idx_messages_sent_at ON messages(sent_at);
+
+
+
+
+-- =============================================
+-- Test Data 
+-- =============================================
+
+INSERT IGNORE INTO users (email, password, name, phone, role, trust_score) 
+VALUES 
+('admin@uiu.edu', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Main Admin', '017xxxxxxxx', 'ADMIN', 95.0),
+('testuser@uiu.edu', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Test User', '018xxxxxxxx', 'USER', 60.0);
+
+-- Password for both: "password"
